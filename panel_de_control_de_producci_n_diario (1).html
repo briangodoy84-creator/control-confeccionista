@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control de Producción Diario</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        /* Custom scrollbar para la tabla */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Header / Barra Superior -->
+    <header class="bg-indigo-700 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600 rounded-lg shadow-inner">
+                    <i class="fa-solid fa-industry text-2xl text-indigo-200"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold leading-tight">Control de Producción Diario</h1>
+                    <p class="text-xs text-indigo-200 flex items-center gap-1 mt-0.5">
+                        <span id="status-indicator" class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                        <span id="status-text">Conectando a base de datos pública...</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Botones de Acción Global -->
+            <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                <button onclick="exportToCSV()" class="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm gap-2">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Exportar CSV</span>
+                </button>
+                <button onclick="shareLink()" class="flex-1 sm:flex-initial inline-flex items-center justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm gap-2">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    <span>Compartir</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Grid Superior: Formulario + Resumen de Totales -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Formulario de Carga (8 Cols en escritorio) -->
+            <div class="lg:col-span-8 bg-white rounded-xl shadow-sm border border-slate-200 p-5 sm:p-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+                    <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-square-plus text-indigo-600"></i>
+                        Nuevo Registro de Producción
+                    </h2>
+                    <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">Sincronizado en Vivo</span>
+                </div>
+
+                <form id="production-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+                        <!-- Columna 1: Confeccionista -->
+                        <div class="sm:col-span-1">
+                            <label for="confeccionista" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                1. Confeccionista <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-user-gear"></i>
+                                </span>
+                                <input type="text" id="confeccionista" required placeholder="Nombre del taller o confeccionista"
+                                    class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Columna 2: Nº de Orden -->
+                        <div class="sm:col-span-1">
+                            <label for="numOrden" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                2. Nº de Orden (0 - 100M) <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-hashtag"></i>
+                                </span>
+                                <input type="number" id="numOrden" min="0" max="100000000" required placeholder="Ej: 10542"
+                                    class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Columna 2.1: Fecha de Ingreso -->
+                        <div class="sm:col-span-1">
+                            <label for="fechaIngreso" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                Fecha de Ingreso <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-calendar-day"></i>
+                                </span>
+                                <input type="date" id="fechaIngreso" required
+                                    class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Columna 3: Tipo de Prenda -->
+                        <div class="sm:col-span-1">
+                            <label for="tipoPrenda" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                3. Tipo de Prenda <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-shirt"></i>
+                                </span>
+                                <select id="tipoPrenda" required onchange="calculatePrices()"
+                                    class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all outline-none appearance-none">
+                                    <option value="" disabled selected>Seleccione prenda...</option>
+                                    <option value="CAMISETAS">CAMISETAS ($1.750)</option>
+                                    <option value="SHORES">SHORES ($1.250)</option>
+                                    <option value="BUZOS">BUZOS ($3.200)</option>
+                                    <option value="CHOMBAS DEPORTIVA">CHOMBAS DEPORTIVA ($1.750)</option>
+                                    <option value="ARREGLOS">ARREGLOS ($1.000)</option>
+                                    <option value="BANDERAS">BANDERAS ($800)</option>
+                                </select>
+                                <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Columna 4: Cantidad -->
+                        <div class="sm:col-span-1">
+                            <label for="cantidad" class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                4. Cantidad <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <i class="fa-solid fa-boxes-stacked"></i>
+                                </span>
+                                <input type="number" id="cantidad" min="1" required placeholder="0" oninput="calculatePrices()"
+                                    class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all outline-none">
+                            </div>
+                        </div>
+
+                        <!-- Columna 5 & 6: Precio Aut. & Subtotal Aut. -->
+                        <div class="sm:col-span-1">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                        5. P. Unitario
+                                    </label>
+                                    <div class="bg-slate-100 border border-slate-200 rounded-lg py-2 px-3 text-sm font-semibold text-slate-700">
+                                        $<span id="precioUnitarioView">0</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                                        6. Subtotal
+                                    </label>
+                                    <div class="bg-indigo-50 border border-indigo-200 rounded-lg py-2 px-3 text-sm font-bold text-indigo-700">
+                                        $<span id="subtotalView">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Botón Guardar -->
+                    <div class="pt-2 flex justify-end">
+                        <button type="submit" id="btn-save" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all gap-2">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Registrar y Guardar Online</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Resumen de Métricas / Totales (4 Cols en escritorio) -->
+            <div class="lg:col-span-4 space-y-4 flex flex-col justify-between">
+                
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-indigo-500"></i>
+                        Totales Filtrados / Visibles
+                    </h3>
+
+                    <div class="space-y-4">
+                        <div class="p-4 bg-slate-50 rounded-lg border border-slate-100">
+                            <span class="text-xs font-medium text-slate-500 uppercase">Prenda / Unidades Totales</span>
+                            <div class="text-2xl font-extrabold text-slate-800 mt-1 flex items-baseline gap-2">
+                                <span id="stat-total-cantidad">0</span>
+                                <span class="text-xs font-normal text-slate-500">unidades</span>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+                            <span class="text-xs font-medium text-emerald-600 uppercase">Monto Total ($)</span>
+                            <div class="text-3xl font-black text-emerald-700 mt-1">
+                                $<span id="stat-total-monto">0</span>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-indigo-50 rounded-lg border border-indigo-100 flex justify-between items-center">
+                            <div>
+                                <span class="text-xs font-medium text-indigo-600 uppercase">Registros en Sistema</span>
+                                <div class="text-xl font-bold text-indigo-900" id="stat-total-registros">0</div>
+                            </div>
+                            <i class="fa-solid fa-layer-group text-2xl text-indigo-300"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Box -->
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 flex items-start gap-3">
+                    <i class="fa-solid fa-lightbulb text-amber-500 text-lg mt-0.5"></i>
+                    <div>
+                        <span class="font-bold block mb-0.5">Control de Duplicados Activo</span>
+                        El sistema valida de forma instantánea que no ingreses un <strong>Nº de Orden</strong> repetido. Cualquier otro usuario verá tus cambios en tiempo real.
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Sección de Filtros y Tabla de Registros -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            
+            <!-- Encabezado y Barra de Búsqueda/Filtros -->
+            <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-indigo-600"></i>
+                        Diario de Carga de Datos
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Historial diario completo con sincronización online pública</p>
+                </div>
+
+                <!-- Filtros -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Filtro Fecha -->
+                    <div class="relative min-w-[150px]">
+                        <input type="date" id="filter-date" onchange="applyFilters()"
+                            class="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <!-- Filtro Confeccionista -->
+                    <div class="relative min-w-[160px]">
+                        <input type="text" id="filter-confeccionista" placeholder="Buscar confeccionista..." oninput="applyFilters()"
+                            class="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <!-- Reset Filtros -->
+                    <button onclick="resetFilters()" title="Limpiar Filtros"
+                        class="p-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-600 rounded-lg text-xs font-medium transition-colors">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla de Registros -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-600 tracking-wider">
+                            <th class="py-3 px-4">Fecha</th>
+                            <th class="py-3 px-4">Confeccionista</th>
+                            <th class="py-3 px-4">Nº Orden</th>
+                            <th class="py-3 px-4">Tipo Prenda</th>
+                            <th class="py-3 px-4 text-center">Cantidad</th>
+                            <th class="py-3 px-4 text-right">P. Unitario</th>
+                            <th class="py-3 px-4 text-right">Subtotal</th>
+                            <th class="py-3 px-4 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="divide-y divide-slate-100 text-sm">
+                        <!-- Carga dinámica -->
+                        <tr>
+                            <td colspan="8" class="py-8 text-center text-slate-400">
+                                <i class="fa-solid fa-circle-notch fa-spin text-2xl text-indigo-500 mb-2"></i>
+                                <p class="text-xs">Cargando datos online...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pie de Tabla -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
+                <span>Mostrando <strong id="visible-count">0</strong> registro(s)</span>
+                <span>Precios vigentes según lista oficial</span>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-400 text-xs py-4 text-center border-t border-slate-700 mt-8">
+        <p>Sistema de Control de Producción Diario Online &bull; Acceso Público Colaborativo</p>
+    </footer>
+
+    <!-- MODAL / POP-UP: Nº DE ORDEN DUPLICADO -->
+    <div id="duplicate-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden transition-opacity">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-red-100 transform scale-95 transition-transform" id="modal-content">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 text-center">¡Número de Orden Duplicado!</h3>
+            <p class="text-sm text-slate-600 text-center mt-2 leading-relaxed">
+                El Nº de Orden <strong id="modal-num-orden" class="text-red-600 font-mono text-base">#0000</strong> ya se encuentra registrado en la base de datos.
+            </p>
+            <div class="mt-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500 space-y-1">
+                <div><span class="font-semibold">Registrado por:</span> <span id="modal-existing-confeccionista">-</span></div>
+                <div><span class="font-semibold">Fecha:</span> <span id="modal-existing-fecha">-</span></div>
+            </div>
+            <p class="text-xs text-slate-400 text-center mt-3">Por favor, verifique la documentación o ingrese un número distinto para continuar.</p>
+            <div class="mt-6 flex justify-center">
+                <button onclick="closeModal()" class="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl shadow-md transition-all">
+                    Entendido, Corregir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL / POP-UP: COMPARTIR ENLACE / DRIVE -->
+    <div id="share-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 text-xl">
+                <i class="fa-solid fa-share-nodes"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 text-center">Compartir / Control Online</h3>
+            <p class="text-sm text-slate-600 text-center mt-2">
+                Cualquier persona con el enlace podrá ver y cargar registros de producción en tiempo real.
+            </p>
+
+            <div class="mt-4 space-y-3">
+                <label class="block text-xs font-semibold text-slate-500">Enlace directo al sistema online</label>
+                <div class="flex gap-2">
+                    <input type="text" id="share-url-input" readonly class="w-full text-xs bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 text-slate-600 focus:outline-none">
+                    <button onclick="copyShareUrl()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shrink-0">
+                        Copiar
+                    </button>
+                </div>
+                
+                <div class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-800 mt-2 flex items-start gap-2">
+                    <i class="fa-brands fa-google-drive text-blue-600 text-base mt-0.5"></i>
+                    <div>
+                        <span class="font-bold">Para guardar en Google Drive:</span>
+                        Utilice el botón <strong>"Exportar CSV"</strong> y luego arrastre o suba el archivo descargado a su unidad de Google Drive o Google Sheets.
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeShareModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-colors">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL / POP-UP: CONFIRMAR ELIMINACIÓN -->
+    <div id="delete-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+            <i class="fa-solid fa-trash-can text-amber-500 text-3xl mb-3"></i>
+            <h3 class="text-base font-bold text-slate-800">¿Eliminar registro?</h3>
+            <p class="text-xs text-slate-500 mt-1">Esta acción borrará la orden de la base de datos pública de forma permanente.</p>
+            <div class="mt-5 flex gap-3">
+                <button onclick="closeDeleteModal()" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">Cancelar</button>
+                <button id="btn-confirm-delete" onclick="confirmDelete()" class="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Precios por prendas estipulados
+        const PRECIOS = {
+            "CAMISETAS": 1750,
+            "SHORES": 1250,
+            "BUZOS": 3200,
+            "CHOMBAS DEPORTIVA": 1750,
+            "ARREGLOS": 1000,
+            "BANDERAS": 800
+        };
+
+        // Identificadores global de Firebase App
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-diaria-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "demo-api-key",
+                authDomain: "demo-project.firebaseapp.com",
+                projectId: "demo-project",
+                storageBucket: "demo-project.appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:abcdef"
+            };
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Estado global de la aplicación
+        let records = [];
+        let filteredRecords = [];
+        let currentUser = null;
+        let deleteTargetId = null;
+
+        // Establecer Fecha por Defecto a HOY
+        document.getElementById('fechaIngreso').valueToDate = new Date();
+        document.getElementById('fechaIngreso').value = new Date().toISOString().split('T')[0];
+
+        // Autenticación requerida para Firestore
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Error en auth:", err);
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                updateStatus(true, "Conectado Online - Sincronizando");
+                listenToProductionData();
+            } else {
+                updateStatus(false, "Desconectado");
+            }
+        });
+
+        initAuth();
+
+        // Actualizar indicador de conexión
+        function updateStatus(isOnline, message) {
+            const ind = document.getElementById('status-indicator');
+            const txt = document.getElementById('status-text');
+            if (isOnline) {
+                ind.className = "inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                txt.textContent = message;
+            } else {
+                ind.className = "inline-block w-2 h-2 rounded-full bg-red-400";
+                txt.textContent = message;
+            }
+        }
+
+        // Listener en Tiempo Real Firestore (RULE 1 & RULE 2 aplicadas)
+        function listenToProductionData() {
+            if (!currentUser) return;
+            
+            // Colección pública para colaborativo
+            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'registros_produccion');
+
+            onSnapshot(colRef, (snapshot) => {
+                records = [];
+                snapshot.forEach((doc) => {
+                    records.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Ordenar en memoria por fecha / hora descendente
+                records.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+                applyFilters();
+            }, (error) => {
+                console.error("Error al escuchar cambios:", error);
+                updateStatus(false, "Error de conexión online");
+            });
+        }
+
+        // Cálculo dinámico de precios al cambiar inputs
+        window.calculatePrices = function() {
+            const prenda = document.getElementById('tipoPrenda').value;
+            const cantidad = parseInt(document.getElementById('cantidad').value) || 0;
+
+            const unitario = PRECIOS[prenda] || 0;
+            const subtotal = unitario * cantidad;
+
+            document.getElementById('precioUnitarioView').textContent = unitario.toLocaleString('es-AR');
+            document.getElementById('subtotalView').textContent = subtotal.toLocaleString('es-AR');
+        };
+
+        // Enviar Formulario y Guardar
+        window.handleFormSubmit = async function(e) {
+            e.preventDefault();
+
+            if (!currentUser) {
+                alertCustom("Debe estar conectado a internet para registrar datos.");
+                return;
+            }
+
+            const confeccionista = document.getElementById('confeccionista').value.trim();
+            const numOrden = document.getElementById('numOrden').value.toString().trim();
+            const fechaIngreso = document.getElementById('fechaIngreso').value;
+            const tipoPrenda = document.getElementById('tipoPrenda').value;
+            const cantidad = parseInt(document.getElementById('cantidad').value);
+
+            if (!confeccionista || !numOrden || !fechaIngreso || !tipoPrenda || !cantidad) {
+                return;
+            }
+
+            // Validar Rango Número de Orden
+            const numVal = parseInt(numOrden);
+            if (isNaN(numVal) || numVal < 0 || numVal > 100000000) {
+                alertCustom("El Nº de Orden debe estar entre 0 y 100.000.000");
+                return;
+            }
+
+            // REQUISITO CRÍTICO: Verificación de Duplicados en tiempo real sobre Nº de Orden
+            const existingRecord = records.find(r => String(r.numOrden) === String(numOrden));
+            if (existingRecord) {
+                showDuplicateModal(numOrden, existingRecord.confeccionista, existingRecord.fechaIngreso);
+                return; // Bloquea el guardado
+            }
+
+            const precioUnitario = PRECIOS[tipoPrenda] || 0;
+            const subtotal = precioUnitario * cantidad;
+
+            const btnSave = document.getElementById('btn-save');
+            btnSave.disabled = true;
+            btnSave.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Guardando...</span>`;
+
+            try {
+                // Usamos el numOrden como ID del documento para prevenir colisiones atómicas
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'registros_produccion', `orden_${numOrden}`);
+                
+                await setDoc(docRef, {
+                    confeccionista: confeccionista,
+                    numOrden: numOrden,
+                    fechaIngreso: fechaIngreso,
+                    tipoPrenda: tipoPrenda,
+                    cantidad: cantidad,
+                    precioUnitario: precioUnitario,
+                    subtotal: subtotal,
+                    createdBy: currentUser.uid,
+                    createdAt: new Date().toISOString()
+                });
+
+                // Resetear Formulario parcial
+                document.getElementById('numOrden').value = '';
+                document.getElementById('cantidad').value = '';
+                document.getElementById('tipoPrenda').selectedIndex = 0;
+                calculatePrices();
+
+            } catch (err) {
+                console.error("Error al guardar:", err);
+                alertCustom("Ocurrió un error al intentar guardar los datos online.");
+            } finally {
+                btnSave.disabled = false;
+                btnSave.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> <span>Registrar y Guardar Online</span>`;
+            }
+        };
+
+        // Aplicar Filtros (Fecha / Confeccionista) en Memoria JS
+        window.applyFilters = function() {
+            const filterDate = document.getElementById('filter-date').value;
+            const filterConf = document.getElementById('filter-confeccionista').value.toLowerCase().trim();
+
+            filteredRecords = records.filter(r => {
+                const matchDate = filterDate ? r.fechaIngreso === filterDate : true;
+                const matchConf = filterConf ? r.confeccionista.toLowerCase().includes(filterConf) : true;
+                return matchDate && matchConf;
+            });
+
+            renderTable();
+            renderStats();
+        };
+
+        // Limpiar Filtros
+        window.resetFilters = function() {
+            document.getElementById('filter-date').value = '';
+            document.getElementById('filter-confeccionista').value = '';
+            applyFilters();
+        };
+
+        // Renderizar Tabla
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            document.getElementById('visible-count').textContent = filteredRecords.length;
+
+            if (filteredRecords.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="py-8 text-center text-slate-400">
+                            <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                            <p class="text-xs">No hay registros de producción que coincidan.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filteredRecords.map(r => `
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="py-3 px-4 font-mono text-xs text-slate-600">${r.fechaIngreso || '-'}</td>
+                    <td class="py-3 px-4 font-medium text-slate-800">${escapeHtml(r.confeccionista)}</td>
+                    <td class="py-3 px-4">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold font-mono bg-slate-100 text-slate-700 border border-slate-200">
+                            #${r.numOrden}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-md bg-indigo-50 text-indigo-700">
+                            ${r.tipoPrenda}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-center font-bold text-slate-700">${r.cantidad}</td>
+                    <td class="py-3 px-4 text-right text-slate-600">$${(r.precioUnitario || 0).toLocaleString('es-AR')}</td>
+                    <td class="py-3 px-4 text-right font-bold text-emerald-600">$${(r.subtotal || 0).toLocaleString('es-AR')}</td>
+                    <td class="py-3 px-4 text-center">
+                        <button onclick="promptDelete('${r.id}')" title="Eliminar registro" class="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Renderizar Totales Acumulados
+        function renderStats() {
+            const totalCant = filteredRecords.reduce((acc, r) => acc + (parseInt(r.cantidad) || 0), 0);
+            const totalMonto = filteredRecords.reduce((acc, r) => acc + (parseFloat(r.subtotal) || 0), 0);
+
+            document.getElementById('stat-total-cantidad').textContent = totalCant.toLocaleString('es-AR');
+            document.getElementById('stat-total-monto').textContent = totalMonto.toLocaleString('es-AR');
+            document.getElementById('stat-total-registros').textContent = filteredRecords.length;
+        }
+
+        // Modal Duplicados
+        function showDuplicateModal(numOrden, confeccionista, fecha) {
+            document.getElementById('modal-num-orden').textContent = `#${numOrden}`;
+            document.getElementById('modal-existing-confeccionista').textContent = confeccionista || 'Desconocido';
+            document.getElementById('modal-existing-fecha').textContent = fecha || '-';
+            
+            const modal = document.getElementById('duplicate-modal');
+            modal.classList.remove('hidden');
+        }
+
+        window.closeModal = function() {
+            document.getElementById('duplicate-modal').classList.add('hidden');
+        };
+
+        // Modal Compartir
+        window.shareLink = function() {
+            document.getElementById('share-url-input').value = window.location.href;
+            document.getElementById('share-modal').classList.remove('hidden');
+        };
+
+        window.closeShareModal = function() {
+            document.getElementById('share-modal').classList.add('hidden');
+        };
+
+        window.copyShareUrl = function() {
+            const input = document.getElementById('share-url-input');
+            input.select();
+            document.execCommand('copy');
+            alertCustom("¡Enlace copiado al portapapeles! Puedes compartirlo para trabajar colaborativamente.");
+        };
+
+        // Modal Eliminar
+        window.promptDelete = function(id) {
+            deleteTargetId = id;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        };
+
+        window.closeDeleteModal = function() {
+            deleteTargetId = null;
+            document.getElementById('delete-modal').classList.add('hidden');
+        };
+
+        window.confirmDelete = async function() {
+            if (!deleteTargetId || !currentUser) return;
+            const btn = document.getElementById('btn-confirm-delete');
+            btn.disabled = true;
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'registros_produccion', deleteTargetId);
+                await deleteDoc(docRef);
+                closeDeleteModal();
+            } catch (err) {
+                console.error("Error al eliminar:", err);
+                alertCustom("No se pudo eliminar el registro.");
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        // Exportar a CSV (Compatible con Excel y Google Drive/Sheets)
+        window.exportToCSV = function() {
+            if (filteredRecords.length === 0) {
+                alertCustom("No hay registros disponibles para exportar.");
+                return;
+            }
+
+            let csvContent = "\uFEFF"; // BOM para UTF-8 en Excel
+            csvContent += "Fecha Ingreso,Confeccionista,N Orden,Tipo Prenda,Cantidad,Precio Unitario,Subtotal\n";
+
+            filteredRecords.forEach(r => {
+                const row = [
+                    `"${r.fechaIngreso || ''}"`,
+                    `"${(r.confeccionista || '').replace(/"/g, '""')}"`,
+                    `"${r.numOrden || ''}"`,
+                    `"${r.tipoPrenda || ''}"`,
+                    r.cantidad || 0,
+                    r.precioUnitario || 0,
+                    r.subtotal || 0
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            const fechaHoy = new Date().toISOString().split('T')[0];
+            link.setAttribute("download", `Reporte_Produccion_${fechaHoy}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        // Mensaje Box genérico sin alert()
+        function alertCustom(msg) {
+            const div = document.createElement('div');
+            div.className = 'fixed bottom-4 right-4 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 border border-slate-700 animate-bounce';
+            div.innerHTML = `<i class="fa-solid fa-info-circle text-indigo-400 text-base"></i> <span>${escapeHtml(msg)}</span>`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 4000);
+        }
+
+        // Sanitización XSS
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
